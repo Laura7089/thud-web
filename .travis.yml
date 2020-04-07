@@ -1,7 +1,3 @@
-language: rust
-rust:
-  - nightly
-
 services:
   - docker
 
@@ -9,4 +5,3 @@ cache: cargo
 
 script:
   - docker build -t "travis-test-thud-web" .
-  - cargo build --locked --release
