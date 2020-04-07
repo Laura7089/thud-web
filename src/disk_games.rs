@@ -19,7 +19,6 @@ pub fn new_game(sessionid: SessionID) -> bool {
     if fs::metadata(path(sessionid)).is_ok() {
         return false;
     }
-    let game = Thud::new();
     write_game(sessionid, &Thud::new());
     true
 }

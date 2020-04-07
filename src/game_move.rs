@@ -1,7 +1,8 @@
 use thud::{Coord, ThudError};
+use serde::Deserialize;
 use rocket::request::FromForm;
 
-#[derive(FromForm)]
+#[derive(FromForm, Deserialize)]
 pub struct Move {
     src_x: usize,
     src_y: usize,
