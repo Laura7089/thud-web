@@ -7,3 +7,18 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+serde_json = "1.0.51"
+rocket = "0.4.4"
+
+[dependencies.thud]
+version = "0.1.5"
+features = ["serialize"]
+
+[dependencies.rocket_contrib]
+version = "0.4.4"
+default-features = false
+features = ["json"]
+
+[dependencies.serde]
+version = "1.0.106"
+features = ["derive"]
