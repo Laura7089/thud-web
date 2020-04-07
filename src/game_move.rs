@@ -1,19 +1,27 @@
-use thud::{Coord, ThudError};
-use serde::Deserialize;
+use crate::error::ThudError;
+use crate::error::ThudError::BadCoordinate;
 use rocket::request::FromForm;
+use serde::Deserialize;
+use thud::Coord;
 
 #[derive(FromForm, Deserialize)]
 pub struct Move {
-    src_x: usize,
-    src_y: usize,
-    dest_x: usize,
-    dest_y: usize,
+    x: usize,
+    y: usize,
+    to_x: usize,
+    to_y: usize,
 }
 
 impl Move {
     pub fn into_coords(&self) -> Result<(Coord, Coord), ThudError> {
-        let src = Coord::zero_based(self.src_x, self.src_y)?;
-        let dest = Coord::zero_based(self.dest_x, self.dest_y)?;
+        let src = match Coord::zero_based(self.x, self.y) {
+            Ok(c) => c,
+            Err(_) => return Err(BadCoordinate(self.x, self.y)),
+        };
+        let dest = match Coord::zero_based(self.to_x, self.to_y) {
+            Ok(c) => c,
+            Err(_) => return Err(BadCoordinate(self.to_x, self.to_y)),
+        };
         Ok((src, dest))
     }
 }

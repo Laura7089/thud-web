@@ -2,78 +2,85 @@
 #[macro_use]
 extern crate rocket;
 
+mod error;
 mod game_move;
 mod saves;
+use crate::error::ThudError;
 use crate::game_move::Move;
 
-use rocket::request::Form;
 use rocket_contrib::json::Json;
 use serde::Serialize;
-use thud::Thud;
 
 type SessionID = u32;
+type JRep = Json<ThudResponse>;
 
 #[derive(Serialize)]
-enum ReqResult {
+pub enum ThudResponse {
+    Success,
     Board(thud::Board),
     GameOver(thud::EndState, thud::Board),
-    SessionExists,
-    Success,
-    Unknown,
-    SessionNotFound,
-    BadCoordinate,
-    IllegalMove(thud::ThudError),
+    Err(ThudError),
 }
 
 #[get("/board?<sessionid>")]
-fn game_state(sessionid: SessionID) -> Json<ReqResult> {
-    Json(match saves::get_game(sessionid) {
-        Ok(mut game) => {
-            if let Some(state) = game.winner() {
-                saves::write_game(sessionid, &game);
-                ReqResult::GameOver(state, game.board())
-            } else {
-                ReqResult::Board(game.board())
-            }
-        }
-        Err(_) => ReqResult::NoSuchSession,
+fn game_state(sessionid: SessionID) -> JRep {
+    // Get the save
+    let mut save = match saves::load(sessionid) {
+        Ok(save) => save,
+        Err(e) => return e.wrap(),
+    };
+
+    // Calculate the winner and save the game so it's cached
+    let winner = save.game.winner();
+    if let Err(e) = saves::write(sessionid, &save) {
+        return e.wrap();
+    }
+
+    // Return the result
+    Json(if let Some(state) = winner {
+        ThudResponse::GameOver(state, save.game.board())
+    } else {
+        ThudResponse::Board(save.game.board())
     })
 }
 
 #[post("/move?<sessionid>", data = "<wanted_move>")]
-fn move_piece(sessionid: SessionID, wanted_move: Form<Move>) -> Json<ReqResult> {
-    let mut game = match saves::get_game(sessionid) {
-        Ok(g) => g,
-        Err(_) => return Json(ReqResult::NoSuchSession),
-    };
-
+fn move_piece(sessionid: SessionID, wanted_move: Json<Move>) -> JRep {
+    // Process the coordinates for the move
     let (src, dest) = match wanted_move.into_coords() {
         Ok(c) => c,
-        Err(_) => return Json(ReqResult::BadCoordinate),
+        Err(e) => return e.wrap(),
     };
 
-    Json(match game.move_piece(src, dest) {
+    // Load the session save
+    let mut save = match saves::load(sessionid) {
+        Ok(g) => g,
+        Err(e) => return e.wrap(),
+    };
+
+    // Try to move the piece and report the result
+    match save.game.move_piece(src, dest) {
         Ok(_) => {
-            saves::write_game(sessionid, &game);
-            ReqResult::Ok
+            if let Err(e) = saves::write(sessionid, &save) {
+                e.wrap()
+            } else {
+                Json(ThudResponse::Success)
+            }
         }
-        Err(e) => ReqResult::IllegalMove(e),
-    })
+        Err(e) => ThudError::BadMove(e).wrap(),
+    }
 }
 
 #[post("/new?<sessionid>")]
-fn new_game(sessionid: SessionID) -> Json<ReqResult> {
-    Json(if saves::new_game(sessionid) {
-        ReqResult::Ok
-    } else {
-        ReqResult::SessionExists
-    })
+fn new(sessionid: SessionID) -> JRep {
+    match saves::new(sessionid) {
+        Ok(_) => Json(ThudResponse::Success),
+        Err(e) => e.wrap(),
+    }
 }
 
 fn main() {
-    let thud = Thud::new();
-    saves::write_game(100, &thud);
     rocket::ignite()
-        .mount("/thud", routes![game_state, move_piece, new_game])
+        .mount("/thud", routes![game_state, move_piece, new])
         .launch();
 }
