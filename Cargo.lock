@@ -642,12 +642,33 @@ dependencies = [
 ]
 
 [[package]]
-name = "thud"
-version = "0.1.5"
+name = "thiserror"
+version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06d933429f9ef957fa89ea644f614fcad671668341d392d99cdc5f08c468447d"
+checksum = "f0570dc61221295909abdb95c739f2e74325e14293b2026b0a7e195091ec54ae"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "227362df41d566be41a28f64401e07a043157c21c14b9785a0d8e256f940a8fd"
+dependencies = [
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.17",
+]
+
+[[package]]
+name = "thud"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31be85526bb4b9c5cedeed67cd36165bba56f66c0146cb00bf328c33fce5373b"
 dependencies = [
  "serde",
+ "thiserror",
 ]
 
 [[package]]
