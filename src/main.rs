@@ -9,11 +9,17 @@ use rocket_contrib::json::Json;
 use serde::Serialize;
 
 type SessionID = u32;
+type Password = String;
 type JRep = Result<Json<ThudResponse>, Json<ThudError>>;
 
 #[derive(Serialize)]
 pub enum ThudResponse {
     Success,
+    GameCreated {
+        id: SessionID,
+        dwarf_pass: Password,
+        troll_pass: Password,
+    },
     Board(thud::Board),
     GameOver(thud::EndState, thud::Board),
 }
@@ -62,11 +68,9 @@ fn move_piece(sessionid: SessionID, wanted_move: Json<interact::Move>) -> JRep {
     }
 }
 
-#[post("/new")]
-fn new() -> Result<String, Json<ThudError>> {
-    let id: SessionID = rand::random();
-    saves::new(id)?;
-    Ok(id.to_string())
+#[get("/new")]
+fn new() -> JRep {
+    saves::new()
 }
 
 fn main() {
