@@ -1,2 +1,7 @@
 /target
 game_saves
+README.md
+LICENSE
+.dockerignore
+.travis.yml
+Dockerfile
