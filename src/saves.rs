@@ -13,7 +13,11 @@ pub struct ThudSave {
 }
 
 fn path(sessionid: SessionID) -> String {
-    format!("game_saves/{}.json", sessionid)
+    format!(
+        "{}/{}.json",
+        std::env::var("THUD_SAVES_DIR").unwrap_or("game_saves".into()),
+        sessionid
+    )
 }
 
 pub fn load(sessionid: SessionID) -> Result<ThudSave, Json<ThudError>> {

@@ -17,6 +17,8 @@ COPY --from=builder /build/target/release/thud-web /app
 RUN adduser -s /bin/false -SH thud
 USER thud
 
+ENV ROCKET_PORT = 37542
+ENV THUD_SAVES_DIR = "/data"
 EXPOSE 37542
 WORKDIR /app
 CMD ["./thud-web"]
