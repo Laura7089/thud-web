@@ -8,7 +8,7 @@ RUN apt update && \
 
 COPY . /build
 WORKDIR /build
-RUN cargo build --release --locked
+RUN cargo build --release --locked --verbose
 
 FROM alpine AS runner
 RUN mkdir /app
