@@ -2,6 +2,7 @@
 #[macro_use]
 extern crate rocket;
 
+mod error;
 mod interact;
 mod saves;
 
@@ -10,7 +11,7 @@ use serde::Serialize;
 
 type SessionID = u32;
 type Password = String;
-type JRep = Result<Json<ThudResponse>, Json<ThudError>>;
+pub type JRep = Result<Json<ThudResponse>, Json<error::ThudWebError>>;
 
 #[derive(Serialize)]
 pub enum ThudResponse {
@@ -24,23 +25,12 @@ pub enum ThudResponse {
     GameOver(thud::EndState, thud::Board),
 }
 
-#[derive(Serialize, Debug)]
-pub enum ThudError {
-    SessionExists(SessionID),
-    SessionNotFound(SessionID),
-    BadCoordinate(usize, usize),
-    BadMove(thud::ThudError),
-    Unknown,
-}
-
 #[get("/board?<sessionid>")]
 fn game_state(sessionid: SessionID) -> JRep {
-    // Get the save
-    let mut save = saves::load(sessionid)?;
-
     // Calculate the winner and save the game so it's cached
+    let mut save = saves::load(sessionid)?;
     let winner = save.game.winner();
-    saves::write(sessionid, &save)?;
+    saves::write(&save)?;
 
     // Return the result
     Ok(Json(if let Some(state) = winner {
@@ -52,20 +42,35 @@ fn game_state(sessionid: SessionID) -> JRep {
 
 #[post("/move?<sessionid>", data = "<wanted_move>")]
 fn move_piece(sessionid: SessionID, wanted_move: Json<interact::Move>) -> JRep {
-    // Process the coordinates for the move
-    let (src, dest) = wanted_move.into_coords()?;
-
-    // Load the session save
+    // Load the session save and verify with the password
     let mut save = saves::load(sessionid)?;
+    save.verify(&wanted_move.pass)?;
 
-    // Try to move the piece and report the result
-    match save.game.move_piece(src, dest) {
-        Ok(_) => {
-            saves::write(sessionid, &save)?;
-            Ok(Json(ThudResponse::Success))
-        }
-        Err(e) => Err(Json(ThudError::BadMove(e))),
-    }
+    // Try the move and write the changes
+    wanted_move.try_move(&mut save.game)?;
+    saves::write(&save)?;
+    Ok(Json(ThudResponse::Success))
+}
+
+#[post("/attack?<sessionid>", data = "<wanted_attack>")]
+fn attack(sessionid: SessionID, wanted_attack: Json<interact::Move>) -> JRep {
+    let mut save = saves::load(sessionid)?;
+    save.verify(&wanted_attack.pass)?;
+
+    wanted_attack.try_attack(&mut save.game)?;
+    saves::write(&save)?;
+    Ok(Json(ThudResponse::Success))
+}
+
+#[post("/trolltake?<sessionid>", data = "<targets>")]
+fn troll_take(sessionid: SessionID, targets: Json<interact::TrollTake>) -> JRep {
+    let mut save = saves::load(sessionid)?;
+    save.verify(&targets.pass)?;
+
+    targets.try_take(&mut save.game)?;
+    saves::write(&save)?;
+
+    Ok(Json(ThudResponse::Success))
 }
 
 #[get("/new")]
