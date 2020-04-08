@@ -11,14 +11,18 @@ WORKDIR /build
 RUN cargo build --release --locked --verbose
 
 FROM alpine AS runner
-RUN mkdir /app
-COPY --from=builder /build/target/release/thud-web /app
-
-RUN adduser -s /bin/false -SH thud
-USER thud
-
 ENV ROCKET_PORT = 37542
 ENV THUD_SAVES_DIR = "/data"
+
+RUN adduser -s /bin/false -SH thud && \
+        mkdir /app /data && \
+        chown -R thud:thud /app /data
+
+USER thud
+
+COPY --from=builder /build/target/release/thud-web /app
+
 EXPOSE 37542
+VOLUME /data
 WORKDIR /app
 CMD ["./thud-web"]
