@@ -1,7 +1,6 @@
 use crate::{error::Error, SessionID, ThudResponse};
 
 use rand::prelude::*;
-use rocket_contrib::json::Json;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -19,6 +18,20 @@ pub struct ThudSave {
 }
 
 impl ThudSave {
+    pub fn load(sessionid: SessionID) -> Result<ThudSave, Error> {
+        let file =
+            fs::File::open(path(sessionid)).map_err(|_| Error::SessionNotFound(sessionid))?;
+        Ok(serde_json::from_reader(file).unwrap())
+    }
+
+    pub fn write(&self) -> Result<(), Error> {
+        let thud_json = serde_json::to_string(self).unwrap();
+        match fs::write(path(self.id), thud_json) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(Error::Unknown),
+        }
+    }
+
     pub fn verify(&self, pass: &String) -> Result<(), Error> {
         let hashed = hash(&pass);
         let pass_player = if hashed == self.dwarf_hash {
@@ -39,6 +52,40 @@ impl ThudSave {
         }
         Ok(())
     }
+}
+
+pub fn new() -> Result<ThudResponse, Error> {
+    let mut rng = rand::thread_rng();
+
+    // Get a unique session id
+    let mut id: SessionID = 0;
+    for i in 0..5 {
+        id = rng.gen();
+        if !Path::new(&path(id)).exists() {
+            break;
+        }
+        if i == 4 {
+            return Err(Error::Unknown);
+        }
+    }
+
+    // Generate a new game
+    let passes = vec![gen_pass(&mut rng), gen_pass(&mut rng)];
+    let hashes: Vec<_> = passes.iter().map(hash).collect();
+    let save = ThudSave {
+        id,
+        dwarf_hash: hashes[0],
+        troll_hash: hashes[1],
+        game: Thud::new(),
+    };
+    save.write()?;
+
+    // Return
+    Ok(ThudResponse::GameCreated {
+        id,
+        dwarf_pass: passes[0].clone(),
+        troll_pass: passes[1].clone(),
+    })
 }
 
 fn path(sessionid: SessionID) -> String {
@@ -62,54 +109,4 @@ fn hash(input: &String) -> Hash {
     let mut sum: Hash = 0;
     hasher.result().iter().for_each(|x| sum += *x as Hash);
     sum
-}
-
-pub fn load(sessionid: SessionID) -> Result<ThudSave, Error> {
-    let file = match fs::File::open(path(sessionid)) {
-        Ok(f) => f,
-        Err(_) => return Err(Error::SessionNotFound(sessionid)),
-    };
-    Ok(serde_json::from_reader(file).unwrap())
-}
-
-pub fn write(thud: &ThudSave) -> Result<(), Error> {
-    let thud_json = serde_json::to_string(thud).unwrap();
-    match fs::write(path(thud.id), thud_json) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(Error::Unknown),
-    }
-}
-
-pub fn new() -> Result<Json<ThudResponse>, Error> {
-    let mut rng = rand::thread_rng();
-
-    // Get a unique session id
-    let mut id: SessionID = 0;
-    for i in 0..5 {
-        id = rng.gen();
-        if !Path::new(&path(id)).exists() {
-            break;
-        }
-        if i == 4 {
-            return Err(Error::Unknown);
-        }
-    }
-
-    // Generate a new game
-    let passes: Vec<_> = vec![gen_pass(&mut rng), gen_pass(&mut rng)];
-    let hashes: Vec<_> = passes.iter().map(hash).collect();
-    let save = ThudSave {
-        id,
-        dwarf_hash: hashes[0],
-        troll_hash: hashes[1],
-        game: Thud::new(),
-    };
-    write(&save)?;
-
-    // Return
-    Ok(Json(ThudResponse::GameCreated {
-        id,
-        dwarf_pass: passes[0].clone(),
-        troll_pass: passes[1].clone(),
-    }))
 }

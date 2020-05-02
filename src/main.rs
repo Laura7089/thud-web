@@ -7,6 +7,7 @@ mod interact;
 mod saves;
 
 use rocket_contrib::json::Json;
+use saves::ThudSave;
 use serde::Serialize;
 
 type SessionID = u32;
@@ -25,12 +26,18 @@ pub enum ThudResponse {
     GameOver(thud::EndState, thud::Board),
 }
 
+impl From<error::Error> for Json<error::Error> {
+    fn from(e: error::Error) -> Self {
+        Json(e)
+    }
+}
+
 #[get("/board?<sessionid>")]
 fn game_state(sessionid: SessionID) -> JRep {
     // Calculate the winner and save the game so it's cached
-    let mut save = saves::load(sessionid)?;
+    let mut save = ThudSave::load(sessionid)?;
     let winner = save.game.winner();
-    saves::write(&save)?;
+    save.write()?;
 
     // Return the result
     Ok(Json(if let Some(state) = winner {
@@ -43,39 +50,39 @@ fn game_state(sessionid: SessionID) -> JRep {
 #[post("/move?<sessionid>", data = "<wanted_move>")]
 fn move_piece(sessionid: SessionID, wanted_move: Json<interact::Move>) -> JRep {
     // Load the session save and verify with the password
-    let mut save = saves::load(sessionid)?;
+    let mut save = ThudSave::load(sessionid)?;
     save.verify(&wanted_move.pass)?;
 
     // Try the move and write the changes
     wanted_move.try_move(&mut save.game)?;
-    saves::write(&save)?;
+    save.write()?;
     Ok(Json(ThudResponse::Success))
 }
 
 #[post("/attack?<sessionid>", data = "<wanted_attack>")]
 fn attack(sessionid: SessionID, wanted_attack: Json<interact::Move>) -> JRep {
-    let mut save = saves::load(sessionid)?;
+    let mut save = ThudSave::load(sessionid)?;
     save.verify(&wanted_attack.pass)?;
 
     wanted_attack.try_attack(&mut save.game)?;
-    saves::write(&save)?;
+    save.write()?;
     Ok(Json(ThudResponse::Success))
 }
 
 #[post("/trolltake?<sessionid>", data = "<targets>")]
 fn troll_take(sessionid: SessionID, targets: Json<interact::TrollTake>) -> JRep {
-    let mut save = saves::load(sessionid)?;
+    let mut save = ThudSave::load(sessionid)?;
     save.verify(&targets.pass)?;
 
     targets.try_take(&mut save.game)?;
-    saves::write(&save)?;
+    save.write()?;
 
     Ok(Json(ThudResponse::Success))
 }
 
 #[get("/new")]
 fn new() -> JRep {
-    Ok(saves::new()?)
+    Ok(Json(saves::new()?))
 }
 
 fn main() {
