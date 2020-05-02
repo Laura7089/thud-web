@@ -11,7 +11,7 @@ use serde::Serialize;
 
 type SessionID = u32;
 type Password = String;
-pub type JRep = Result<Json<ThudResponse>, Json<error::ThudWebError>>;
+pub type JRep = Result<Json<ThudResponse>, Json<error::Error>>;
 
 #[derive(Serialize)]
 pub enum ThudResponse {
@@ -75,7 +75,7 @@ fn troll_take(sessionid: SessionID, targets: Json<interact::TrollTake>) -> JRep 
 
 #[get("/new")]
 fn new() -> JRep {
-    saves::new()
+    Ok(saves::new()?)
 }
 
 fn main() {

@@ -1,4 +1,4 @@
-use crate::{error::ThudWebError, JRep, SessionID, ThudResponse};
+use crate::{error::Error, SessionID, ThudResponse};
 
 use rand::prelude::*;
 use rocket_contrib::json::Json;
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
-use thud::{Player, Thud};
+use thud::{Player, Thud, ThudError as GameError};
 
 type Hash = u64;
 
@@ -19,23 +19,23 @@ pub struct ThudSave {
 }
 
 impl ThudSave {
-    pub fn verify(&self, pass: &String) -> Result<(), Json<ThudWebError>> {
+    pub fn verify(&self, pass: &String) -> Result<(), Error> {
         let hashed = hash(&pass);
         let pass_player = if hashed == self.dwarf_hash {
             Player::Dwarf
         } else if hashed == self.troll_hash {
             Player::Troll
         } else {
-            return Err(Json(ThudWebError::IncorrectPassword));
+            return Err(Error::IncorrectPassword);
         };
 
-        let turn_player = self
-            .game
-            .turn()
-            .ok_or(Json(ThudWebError::GameError(thud::ThudError::BadAction)))?;
+        let turn_player = match self.game.turn() {
+            Some(v) => v,
+            None => return Err(GameError::BadAction.into()),
+        };
 
         if pass_player != turn_player {
-            return Err(Json(ThudWebError::GameError(thud::ThudError::BadAction)));
+            return Err(GameError::BadAction.into());
         }
         Ok(())
     }
@@ -64,20 +64,23 @@ fn hash(input: &String) -> Hash {
     sum
 }
 
-pub fn load(sessionid: SessionID) -> Result<ThudSave, Json<ThudWebError>> {
+pub fn load(sessionid: SessionID) -> Result<ThudSave, Error> {
     let file = match fs::File::open(path(sessionid)) {
         Ok(f) => f,
-        Err(_) => return Err(Json(ThudWebError::SessionNotFound(sessionid))),
+        Err(_) => return Err(Error::SessionNotFound(sessionid)),
     };
     Ok(serde_json::from_reader(file).unwrap())
 }
 
-pub fn write(thud: &ThudSave) -> Result<(), Json<ThudWebError>> {
+pub fn write(thud: &ThudSave) -> Result<(), Error> {
     let thud_json = serde_json::to_string(thud).unwrap();
-    fs::write(path(thud.id), thud_json).or(Err(Json(ThudWebError::Unknown)))
+    match fs::write(path(thud.id), thud_json) {
+        Ok(_) => Ok(()),
+        Err(_) => Err(Error::Unknown),
+    }
 }
 
-pub fn new() -> JRep {
+pub fn new() -> Result<Json<ThudResponse>, Error> {
     let mut rng = rand::thread_rng();
 
     // Get a unique session id
@@ -88,7 +91,7 @@ pub fn new() -> JRep {
             break;
         }
         if i == 4 {
-            return Err(Json(ThudWebError::Unknown));
+            return Err(Error::Unknown);
         }
     }
 
