@@ -14,15 +14,16 @@ FROM alpine AS runner
 ENV ROCKET_PORT = 37542
 ENV THUD_SAVES_DIR = "/data"
 
+COPY --from=builder /build/target/release/thud-web /app/thud
+
 RUN adduser -s /bin/false -SH thud && \
-        mkdir /app /data && \
+        addgroup thud && \
+        mkdir /data && \
         chown -R thud:thud /app /data
 
 USER thud
 
-COPY --from=builder /build/target/release/thud-web /app
-
 EXPOSE 37542
 VOLUME /data
 WORKDIR /app
-CMD ["./thud-web"]
+CMD ["./thud"]
